@@ -59,19 +59,31 @@ ORDER BY
         WHEN 'young' THEN 1
         WHEN 'midlife' THEN 2
         WHEN 'mature' THEN 3
-        WHEN 'mature' THEN 4
+        WHEN 'aging' THEN 4
     END;
 
 
--- ---------------------------------------------------------------
+-- ---------------------------------------------------------------------
 -- BLOCK 3: Failure burden by model
 -- Which model has the most failures? Is it proportional to fleet
 -- size or are some models disproportionately failure-prone?
 -- Demonstrates: multi-table join + aggregation + ratio calculation
--- ---------------------------------------------------------------
-
--- TODO: Write query here
 -- Columns: model, machine_count, total_failures, failures_per_machine
+-- ---------------------------------------------------------------------
+SELECT 
+    m.model,
+    COUNT(DISTINCT m.machineID) AS machine_count,
+    COUNT(f.machineID) AS total_failures,
+    ROUND(
+        COUNT(f.machineID)::NUMERIC / NULLIF(COUNT(DISTINCT m.machineID), 0)
+    , 2) AS failures_per_machine,
+    ROUND(
+        100.0 * COUNT(f.machineid) / NULLIF(SUM(COUNT(f.machineid)) OVER (), 0)
+    , 2) AS pct_of_total_failures
+FROM machines m
+LEFT JOIN failures f on m.machineid = f.machineid
+GROUP BY m.model
+ORDER BY total_failures DESC;
 
 
 -- ---------------------------------------------------------------
@@ -80,9 +92,38 @@ ORDER BY
 -- why machine age should be a feature in the model.
 -- Demonstrates: CASE WHEN + GROUP BY + aggregate ratio
 -- ---------------------------------------------------------------
-
--- TODO: Write query here
--- Columns: age_category, machine_count, total_failures, avg_failures_per_machine
+WITH age_categories AS (
+    SELECT  
+        machineid,
+        age,
+        CASE
+            WHEN age < 7 THEN 'young' 
+            WHEN age >=7 AND age < 12 THEN 'midlife'
+            WHEN age BETWEEN 12 AND 16 THEN 'mature'
+            ELSE 'aging'
+        END AS age_category
+    FROM machines
+)
+SELECT 
+    age_category,
+    COUNT(DISTINCT ac.machineID) AS machine_count,
+    COUNT(f.machineID) AS total_failures,
+    ROUND(
+        COUNT(f.machineid)::NUMERIC / NULLIF(COUNT(DISTINCT ac.machineid), 0)
+    , 2) AS failures_per_machine,
+    ROUND(
+        100.0 * COUNT(f.machineid) / NULLIF(SUM(COUNT(f.machineid)) OVER (), 0)
+    , 2) AS pct_of_total_failures
+FROM age_categories ac
+LEFT JOIN failures f on ac.machineID = f.machineid
+GROUP BY age_category
+ORDER BY 
+    CASE age_category
+        WHEN 'young' THEN 1
+        WHEN 'midlife' THEN 2
+        WHEN 'mature' THEN 3
+        WHEN 'aging' THEN 4
+    END;
 
 
 -- ---------------------------------------------------------------
@@ -91,6 +132,86 @@ ORDER BY
 -- Only show model/failure_type combos with more than N occurrences.
 -- Demonstrates: multi-column GROUP BY, HAVING for post-agg filter
 -- ---------------------------------------------------------------
+SELECT 
+    m.model,
+    f.failure AS failure_type,
+    COUNT(*) AS failure_count,
+    ROUND(
+        100.0 * COUNT(*) / SUM(COUNT(*)) OVER (PARTITION BY m.model)
+    , 2) AS pct_within_model
+FROM failures f
+JOIN machines m ON f.machineid = m.machineid
+GROUP BY m.model, f.failure
+HAVING COUNT(*) > 10
+ORDER BY m.model, failure_count DESC 
 
--- TODO: Write query here
--- Columns: model, failure_type, count — filter with HAVING > threshold
+
+-- ---------------------------------------------------------------
+-- BLOCK 6: Pareto analysis — which machines drive most failures?
+-- Business Q: What percentage of machines account for 80% of
+--             failures? Identifies the chronic assets that a
+--             proactive dispatch strategy should prioritise.
+-- Concepts:   SUM() OVER (ORDER BY ... DESC) as a running total,
+--             cumulative percentage, ROUND + filter to find the
+--             80% threshold. Different window pattern to blocks
+--             1–5 — ordered running total vs partition aggregate.
+-- Output:     A ranked machine list with cumulative failure share.
+--             The point where cumulative_pct crosses 80% defines
+--             your high-priority asset cohort.
+-- ---------------------------------------------------------------
+WITH machine_failures AS (
+    SELECT 
+        m.machineID,
+        m.model,
+        m.age,
+        COUNT(f.machineID) AS total_failures
+    FROM machines m
+    LEFT JOIN failures f ON m.machineid = f.machineid
+    GROUP BY m.machineid, m.model, m.age   
+), 
+machine_pct AS (
+    SELECT 
+        machineid,
+        model, 
+        age,
+        total_failures,
+        100.0 * total_failures / NULLIF(SUM(total_failures) OVER (), 0) AS pct_of_total
+    FROM machine_failures
+)
+SELECT 
+    machineid,
+    model, 
+    age,
+    total_failures,
+    ROUND(pct_of_total, 2) AS pct_of_total,
+    ROUND(
+        SUM(pct_of_total) OVER (ORDER BY total_failures DESC, machineID)
+    , 2) AS cumulative_pct
+FROM machine_pct
+ORDER BY total_failures DESC;
+
+
+-- ---------------------------------------------------------------
+-- BLOCK 7: Machines with zero failures
+-- Business Q: What proportion of the fleet has never failed?
+--             This directly quantifies label imbalance before
+--             modelling — the lower this number, the more severe
+--             the class imbalance problem.
+-- Concepts:   Anti-join (LEFT JOIN / IS NULL) to find machines
+--             with no matching failure records. Simple but
+--             analytically important — pairs with the class
+--             imbalance check in 00_data_quality.sql.
+-- Output:     Count and percentage of never-failed machines.
+--             Feeds directly into the decision to use SMOTE,
+--             PR curves over ROC, and threshold tuning.
+-- ---------------------------------------------------------------
+SELECT 
+    COUNT(DISTINCT m.machineID) AS total_machines,
+    COUNT(CASE WHEN f.machineid IS NULL THEN 1 END) AS never_failed_count,
+    ROUND(
+        100.0 * COUNT(CASE WHEN f.machineID IS NULL THEN 1 END) /
+        NULLIF(COUNT(DISTINCT m.machineID), 0)
+    , 2) AS never_failed_pct
+FROM machines m
+LEFT JOIN failures f ON m.machineID = f.machineID;
+ 
