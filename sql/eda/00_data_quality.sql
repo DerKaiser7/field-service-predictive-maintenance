@@ -224,3 +224,22 @@ SELECT
 FROM errors
 GROUP BY errorID
 ORDER BY occurrences DESC;
+
+
+-- ---------------------------------------------------------------
+-- 11: AGE DISTRIBUTION SUMMARY
+-- What is the spread of machine ages across the fleet?
+-- p25/p50/p75 establish the quartile thresholds used in
+-- 01_distributions.sql to define age category buckets.
+-- ---------------------------------------------------------------
+SELECT
+    MIN(age)                                    AS min_age,
+    MAX(age)                                    AS max_age,
+    ROUND(AVG(age)::NUMERIC, 1)                 AS avg_age,
+    PERCENTILE_CONT(0.25) WITHIN GROUP 
+        (ORDER BY age)                          AS p25,
+    PERCENTILE_CONT(0.50) WITHIN GROUP 
+        (ORDER BY age)                          AS p50,
+    PERCENTILE_CONT(0.75) WITHIN GROUP 
+        (ORDER BY age)                          AS p75
+FROM machines;
