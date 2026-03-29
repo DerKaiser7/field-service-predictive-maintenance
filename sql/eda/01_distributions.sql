@@ -36,14 +36,31 @@ ORDER BY machine_count DESC;
 --   aging   → age > 16      (above p75)
 -- How many machines fall into each life-stage bucket?
 -- ---------------------------------------------------------------
-SELECT machineID, model, age,
-    CASE 
-        WHEN age < 7 THEN 'young'
-        WHEN age BETWEEN 7  AND 11 THEN 'midlife'
-        WHEN age BETWEEN 12 AND 16 THEN 'mature'
-        ELSE 'aging'
-    END AS age_category
-FROM machines;
+WITH age_categories AS (
+    SELECT 
+        machineID, 
+        age,
+        CASE 
+            WHEN age < 7 THEN 'young'
+            WHEN age >= 7  AND age < 12 THEN 'midlife'
+            WHEN age BETWEEN 12 AND 16 THEN 'mature'
+            ELSE 'aging'
+        END AS age_category
+    FROM machines
+)
+SELECT 
+    age_category, 
+    COUNT(*) as category_count,
+    ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS pct_of_total 
+FROM age_categories
+GROUP BY age_category
+ORDER BY 
+    CASE age_category
+        WHEN 'young' THEN 1
+        WHEN 'midlife' THEN 2
+        WHEN 'mature' THEN 3
+        WHEN 'mature' THEN 4
+    END;
 
 
 -- ---------------------------------------------------------------
