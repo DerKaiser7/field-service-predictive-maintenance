@@ -68,7 +68,7 @@ ORDER BY source;
 SELECT
     COUNT(*)                                   AS total_rows,
     COUNT(*) FILTER (WHERE datetime  IS NULL)  AS null_datetime,
-    COUNT(*) FILTER (WHERE machineID IS NULL)  AS null_machine_id,
+    COUNT(*) FILTER (WHERE machineid IS NULL)  AS null_machine_id,
     COUNT(*) FILTER (WHERE volt      IS NULL)  AS null_volt,
     COUNT(*) FILTER (WHERE rotate    IS NULL)  AS null_rotate,
     COUNT(*) FILTER (WHERE pressure  IS NULL)  AS null_pressure,
@@ -85,7 +85,7 @@ SELECT
     'errors' AS table_name,
     COUNT(*) FILTER (WHERE datetime  IS NULL),
     COUNT(*) FILTER (WHERE errorID   IS NULL),
-    COUNT(*) FILTER (WHERE machineID IS NULL)
+    COUNT(*) FILTER (WHERE machineid IS NULL)
 FROM errors
 
 UNION ALL
@@ -93,7 +93,7 @@ UNION ALL
 SELECT 
     'maintenance',
     COUNT(*) FILTER (WHERE datetime  IS NULL),
-    COUNT(*) FILTER (WHERE machineID IS NULL),
+    COUNT(*) FILTER (WHERE machineid IS NULL),
     COUNT(*) FILTER (WHERE comp IS NULL)
 FROM maintenance
 
@@ -102,7 +102,7 @@ UNION ALL
 SELECT 
     'failures',
     COUNT(*) FILTER (WHERE datetime  IS NULL),
-    COUNT(*) FILTER (WHERE machineID IS NULL),
+    COUNT(*) FILTER (WHERE machineid IS NULL),
     COUNT(*) FILTER (WHERE failure   IS NULL)
 FROM failures;
 
@@ -113,9 +113,9 @@ FROM failures;
 -- Duplicates would inflate rolling averages and window features.
 -- LIMIT 10 surfaces examples without scanning the full result.
 -- -------------------------------------------------------------
-SELECT machineID, datetime, COUNT(*) AS duplicate_count
+SELECT machineid, datetime, COUNT(*) AS duplicate_count
 FROM telemetry
-GROUP BY machineID, datetime
+GROUP BY machineid, datetime
 HAVING COUNT(*) > 1
 ORDER BY duplicate_count DESC
 LIMIT 10;
@@ -123,36 +123,36 @@ LIMIT 10;
 
 -- -------------------------------------------------------------
 -- 6. FOREIGN KEY INTEGRITY — ALL EVENT TABLES
--- Orphaned records (machineID not in machines) would cause
+-- Orphaned records (machineid not in machines) would cause
 -- silent data loss when joining for feature engineering.
 -- Anti-join pattern: LEFT JOIN + WHERE right side IS NULL.
 -- Expect zero orphans in all tables.
 -- -------------------------------------------------------------
 SELECT 'telemetry' AS table_name, COUNT(*) AS orphaned_rows
 FROM telemetry t
-LEFT JOIN machines m ON t.machineID = m.machineID
-WHERE m.machineID IS NULL
+LEFT JOIN machines m ON t.machineid = m.machineid
+WHERE m.machineid IS NULL
 
 UNION ALL
 
 SELECT 'errors', COUNT(*)
 FROM errors e
-LEFT JOIN machines m ON e.machineID = m.machineID
-WHERE m.machineID IS NULL
+LEFT JOIN machines m ON e.machineid = m.machineid
+WHERE m.machineid IS NULL
 
 UNION ALL
 
 SELECT 'failures', COUNT(*)
 FROM failures f
-LEFT JOIN machines m ON f.machineID = m.machineID
-WHERE m.machineID IS NULL
+LEFT JOIN machines m ON f.machineid = m.machineid
+WHERE m.machineid IS NULL
 
 UNION ALL
 
 SELECT 'maintenance', COUNT(*)
 FROM maintenance mt
-LEFT JOIN machines m ON mt.machineID = m.machineID
-WHERE m.machineID IS NULL;
+LEFT JOIN machines m ON mt.machineid = m.machineid
+WHERE m.machineid IS NULL;
 
 
 -- -------------------------------------------------------------
@@ -161,12 +161,12 @@ WHERE m.machineID IS NULL;
 -- with no telemetry cannot be scored by the model at inference.
 -- -------------------------------------------------------------
 SELECT
-    COUNT(DISTINCT m.machineID)     AS total_machines,
-    COUNT(DISTINCT t.machineID)     AS machines_with_telemetry_reading,
-    COUNT(DISTINCT m.machineID) - 
-        COUNT(DISTINCT t.machineID) AS machines_missing_telemetry_reading
+    COUNT(DISTINCT m.machineid)     AS total_machines,
+    COUNT(DISTINCT t.machineid)     AS machines_with_telemetry_reading,
+    COUNT(DISTINCT m.machineid) - 
+        COUNT(DISTINCT t.machineid) AS machines_missing_telemetry_reading
 FROM machines m
-LEFT JOIN telemetry t ON m.machineID = t.machineID;
+LEFT JOIN telemetry t ON m.machineid = t.machineid;
 
 
 -- ------------------------------------------------------------------
@@ -193,7 +193,7 @@ ORDER BY occurrences DESC;
 -- Uses LEFT JOIN to include machines with zero failures.
 -- -------------------------------------------------------------
 SELECT 
-    m.machineID, 
+    m.machineid, 
     m.model, 
     m.age, 
     COUNT(f.id) AS total_failures,
@@ -203,8 +203,8 @@ SELECT
         )
     , 2)       AS pct_of_total_failures
 FROM machines m
-LEFT JOIN failures f ON m.machineID = f.machineID
-GROUP BY m.machineID, m.model, m.age
+LEFT JOIN failures f ON m.machineid = f.machineid
+GROUP BY m.machineid, m.model, m.age
 ORDER BY total_failures DESC
 LIMIT 20; 
 
@@ -217,7 +217,7 @@ LIMIT 20;
 -- -------------------------------------------------------------
 SELECT 
     errorID, COUNT(*)         AS occurrences,
-    COUNT(DISTINCT machineID) AS machines_affected,
+    COUNT(DISTINCT machineid) AS machines_affected,
     ROUND(
         COUNT(*) * 100.0 / SUM(COUNT(*)) OVER ()
     , 2)                      AS pct_of_total

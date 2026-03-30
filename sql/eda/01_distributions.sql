@@ -38,7 +38,7 @@ ORDER BY machine_count DESC;
 -- ---------------------------------------------------------------
 WITH age_categories AS (
     SELECT 
-        machineID, 
+        machineid, 
         age,
         CASE 
             WHEN age < 7 THEN 'young'
@@ -72,10 +72,10 @@ ORDER BY
 -- ---------------------------------------------------------------------
 SELECT 
     m.model,
-    COUNT(DISTINCT m.machineID) AS machine_count,
-    COUNT(f.machineID) AS total_failures,
+    COUNT(DISTINCT m.machineid) AS machine_count,
+    COUNT(f.machineid) AS total_failures,
     ROUND(
-        COUNT(f.machineID)::NUMERIC / NULLIF(COUNT(DISTINCT m.machineID), 0)
+        COUNT(f.machineid)::NUMERIC / NULLIF(COUNT(DISTINCT m.machineid), 0)
     , 2) AS failures_per_machine,
     ROUND(
         100.0 * COUNT(f.machineid) / NULLIF(SUM(COUNT(f.machineid)) OVER (), 0)
@@ -106,8 +106,8 @@ WITH age_categories AS (
 )
 SELECT 
     age_category,
-    COUNT(DISTINCT ac.machineID) AS machine_count,
-    COUNT(f.machineID) AS total_failures,
+    COUNT(DISTINCT ac.machineid) AS machine_count,
+    COUNT(f.machineid) AS total_failures,
     ROUND(
         COUNT(f.machineid)::NUMERIC / NULLIF(COUNT(DISTINCT ac.machineid), 0)
     , 2) AS failures_per_machine,
@@ -115,7 +115,7 @@ SELECT
         100.0 * COUNT(f.machineid) / NULLIF(SUM(COUNT(f.machineid)) OVER (), 0)
     , 2) AS pct_of_total_failures
 FROM age_categories ac
-LEFT JOIN failures f on ac.machineID = f.machineid
+LEFT JOIN failures f on ac.machineid = f.machineid
 GROUP BY age_category
 ORDER BY 
     CASE age_category
@@ -161,10 +161,10 @@ ORDER BY m.model, failure_count DESC
 -- ---------------------------------------------------------------
 WITH machine_failures AS (
     SELECT 
-        m.machineID,
+        m.machineid,
         m.model,
         m.age,
-        COUNT(f.machineID) AS total_failures
+        COUNT(f.machineid) AS total_failures
     FROM machines m
     LEFT JOIN failures f ON m.machineid = f.machineid
     GROUP BY m.machineid, m.model, m.age   
@@ -185,7 +185,7 @@ SELECT
     total_failures,
     ROUND(pct_of_total, 2) AS pct_of_total,
     ROUND(
-        SUM(pct_of_total) OVER (ORDER BY total_failures DESC, machineID)
+        SUM(pct_of_total) OVER (ORDER BY total_failures DESC, machineid)
     , 2) AS cumulative_pct
 FROM machine_pct
 ORDER BY total_failures DESC;
@@ -206,12 +206,14 @@ ORDER BY total_failures DESC;
 --             PR curves over ROC, and threshold tuning.
 -- ---------------------------------------------------------------
 SELECT 
-    COUNT(DISTINCT m.machineID) AS total_machines,
+    m.model,
+    COUNT(DISTINCT m.machineid) AS total_machines,
     COUNT(CASE WHEN f.machineid IS NULL THEN 1 END) AS never_failed_count,
     ROUND(
-        100.0 * COUNT(CASE WHEN f.machineID IS NULL THEN 1 END) /
-        NULLIF(COUNT(DISTINCT m.machineID), 0)
+        100.0 * COUNT(CASE WHEN f.machineid IS NULL THEN 1 END) /
+        NULLIF(COUNT(DISTINCT m.machineid), 0)
     , 2) AS never_failed_pct
 FROM machines m
-LEFT JOIN failures f ON m.machineID = f.machineID;
+LEFT JOIN failures f ON m.machineid = f.machineid
+GROUP BY m.model;
  
