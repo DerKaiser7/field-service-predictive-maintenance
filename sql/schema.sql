@@ -24,14 +24,14 @@ DROP TABLE IF EXISTS staging_machines CASCADE;
 -- ===========================================================
 
 CREATE TABLE staging_machines(
-    machineID TEXT,
+    machineid TEXT,
     model TEXT,
     age TEXT
 );
 
 CREATE TABLE staging_telemetry (
     datetime        TEXT,
-    machineID      TEXT,
+    machineid      TEXT,
     volt            TEXT,
     rotate          TEXT,
     pressure        TEXT,
@@ -40,19 +40,19 @@ CREATE TABLE staging_telemetry (
 
 CREATE TABLE staging_errors (
     datetime        TEXT,
-    machineID      TEXT,
+    machineid      TEXT,
     errorID        TEXT
 );
 
 CREATE TABLE staging_maintenance (
     datetime        TEXT,
-    machineID      TEXT,
+    machineid      TEXT,
     comp            TEXT
 );
 
 CREATE TABLE staging_failures (
     datetime        TEXT,
-    machineID      TEXT,
+    machineid      TEXT,
     failure         TEXT
 );
 
@@ -62,7 +62,7 @@ CREATE TABLE staging_failures (
 -- =====================================
 
 CREATE TABLE machines (
-    machineID TEXT PRIMARY KEY,
+    machineid TEXT PRIMARY KEY,
     model VARCHAR(20) NOT NULL,
     age INTEGER NOT NULL
 );
@@ -70,7 +70,7 @@ CREATE TABLE machines (
 CREATE TABLE telemetry (
     id BIGSERIAL PRIMARY KEY,
     datetime TIMESTAMP NOT NULL,
-    machineID TEXT REFERENCES machines(machineID),
+    machineid TEXT REFERENCES machines(machineid),
     volt NUMERIC(8,4),
     rotate NUMERIC(8,4),
     pressure NUMERIC(8,4),
@@ -80,28 +80,28 @@ CREATE TABLE telemetry (
 CREATE TABLE errors (
     id BIGSERIAL PRIMARY KEY,
     datetime TIMESTAMP NOT NULL,
-    machineID TEXT REFERENCES machines(machineID),
+    machineid TEXT REFERENCES machines(machineid),
     errorID VARCHAR(20) NOT NULL
 );
 
 CREATE TABLE maintenance (
     id BIGSERIAL PRIMARY KEY,
     datetime TIMESTAMP NOT NULL,
-    machineID TEXT REFERENCES machines(machineID),
+    machineid TEXT REFERENCES machines(machineid),
     comp VARCHAR(20) NOT NULL
 );
 
 CREATE TABLE failures (
     id BIGSERIAL PRIMARY KEY,
     datetime TIMESTAMP NOT NULL,
-    machineID TEXT REFERENCES machines(machineID),
+    machineid TEXT REFERENCES machines(machineid),
     failure VARCHAR(20) NOT NULL
 );
 
 CREATE TABLE prediction_logs (
     prediction_id BIGSERIAL PRIMARY KEY,
     predicted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    machineID TEXT NOT NULL REFERENCES machines(machineID),
+    machineid TEXT NOT NULL REFERENCES machines(machineid),
     observation_time TIMESTAMP NOT NULL,
     failure_probability NUMERIC(8,6) NOT NULL CHECK (failure_probability >= 0 AND failure_probability <= 1),
     predicted_label INTEGER NOT NULL CHECK (predicted_label IN (0,1)),
