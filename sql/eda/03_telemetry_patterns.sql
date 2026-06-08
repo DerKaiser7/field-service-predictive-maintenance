@@ -122,7 +122,6 @@ GROUP BY is_pre_failure
 ORDER BY is_pre_failure;
     
 
-
 -- ---------------------------------------------------------------
 -- BLOCK 4: Sensor volatility (stddev) in pre-failure window
 -- Does sensor variance increase before failures, even if the mean
