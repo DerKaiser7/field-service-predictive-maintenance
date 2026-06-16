@@ -212,5 +212,4 @@ LEFT JOIN static_features s ON t.machineid = s.machineid
 LEFT JOIN error_features e ON t.machineid = e.machineid AND t.observation_time = e.observation_time
 LEFT JOIN maintenance_features m ON t.machineid = m.machineid AND t.observation_time = m.observation_time
 LEFT JOIN failure_history f ON t.machineid = f.machineid AND t.observation_time = f.observation_time
-WHERE t.observation_time > CURRENT_DATE - INTERVAL '90 days'
 ORDER BY t.machineid, t.observation_time;

@@ -3,6 +3,7 @@
 ## Overview
 
 This document explains the feature engineering pipeline for the predictive maintenance system. The goal is to create a robust set of features that:
+
 1. **Prevent data leakage** — use only information available at the observation time
 2. **Capture temporal patterns** — rolling aggregations at multiple timescales
 3. **Enable interpretability** — features correspond to meaningful machine diagnostics
@@ -13,14 +14,14 @@ This document explains the feature engineering pipeline for the predictive maint
 
 ## Data Flow
 
-```
+```text
 Raw Data (staging tables)
     ↓
 Base Tables (machines, telemetry, errors, maintenance, failures)
     ↓
 Feature Engineering (build_features.sql)
     ↓
-model_input_features table (training dataset)
+model_input_features table (876,100 rows, 42 features + label)
 ```
 
 ---
@@ -32,7 +33,7 @@ model_input_features table (training dataset)
 **Source:** `machines` table
 
 | Feature | Type | Rationale |
-|---------|------|-----------|
+| --- | --- | --- |
 | `model` | VARCHAR | Machine type affects failure modes (e.g., model A fails earlier than model B) |
 | `age` | INTEGER | Older machines more likely to fail |
 | `age_category` | VARCHAR | Binned age into 3 categories: new (0-3y), mid-life (3-7y), aged (7+y). Captures non-linear age effects |
@@ -50,16 +51,19 @@ model_input_features table (training dataset)
 **Windows:** 3-hour, 12-hour, 24-hour lookback periods
 
 **Aggregations per window:**
+
 - Mean (central tendency)
 - Standard deviation (variability)
 - Min/Max (extremes) — *only for 3h window to reduce feature count*
 
 **Why these windows?**
+
 - **3h:** Captures short-term anomalies (e.g., vibration spike this morning)
 - **12h:** Medium-term trends (e.g., gradual pressure increase)
 - **24h:** Long-term patterns and daily cycles
 
 **Why these aggregations?**
+
 - **Mean:** Overall sensor operating point
 - **Std:** Variability indicates instability (high variance = problem)
 - **Min/Max:** Extremes identify transient faults
@@ -67,6 +71,7 @@ model_input_features table (training dataset)
 **Telemetry Features Created:**
 
 For each sensor (`voltage`, `rotation`, `pressure`, `vibration`):
+
 - 3h: `{sensor}_mean_3h`, `{sensor}_std_3h`, `{sensor}_min_3h`, `{sensor}_max_3h` (4 features × 4 sensors = 16 features)
 - 12h: `{sensor}_mean_12h`, `{sensor}_std_12h` (2 features × 4 sensors = 8 features)
 - 24h: `{sensor}_mean_24h`, `{sensor}_std_24h` (2 features × 4 sensors = 8 features)
@@ -74,6 +79,7 @@ For each sensor (`voltage`, `rotation`, `pressure`, `vibration`):
 **Total: 32 telemetry features**
 
 **Implementation Detail:**
+
 ```sql
 AVG(CASE WHEN t2.datetime > t.datetime - INTERVAL '3 hours' 
          AND t2.datetime <= t.datetime 
@@ -89,12 +95,13 @@ This uses a self-join on the telemetry table, filtering readings to the 3-hour w
 **Source:** `errors` table
 
 | Feature | Rationale |
-|---------|-----------|
+| --- | --- |
 | `error_count_24h` | # errors in past 24h. Frequent errors = higher failure risk |
 | `hours_since_last_error` | Time decay: recent errors more predictive than old ones |
 | `distinct_error_types` | Error diversity. Multiple error types = complex issues |
 
 **Implementation:**
+
 ```sql
 COUNT(CASE WHEN e.datetime > t.datetime - INTERVAL '24 hours' 
            AND e.datetime <= t.datetime THEN 1 END) AS error_count_24h,
@@ -113,11 +120,12 @@ COUNT(DISTINCT e.errorID) AS distinct_error_types
 **Source:** `maintenance` table
 
 | Feature | Rationale |
-|---------|-----------|
+| --- | --- |
 | `days_since_last_maintenance` | Time since last maintenance. Longer intervals = degradation |
 | `component_diversity` | # distinct components serviced. Indicates system complexity or repeated failures |
 
 **Implementation:**
+
 ```sql
 EXTRACT(EPOCH FROM (t.datetime - MAX(m.datetime))) / 86400.0 AS days_since_last_maintenance,
 
@@ -133,12 +141,13 @@ COUNT(DISTINCT m.comp) AS component_diversity
 **Source:** `failures` table
 
 | Feature | Rationale |
-|---------|-----------|
+| --- | --- |
 | `total_prior_failures` | # past failures. Repeated failures = unreliable machine |
 | `days_since_last_failure` | Time since last failure. Recent failures = current vulnerability |
 | `distinct_failure_types` | Failure diversity. Multiple failure types = systemic issues |
 
 **Implementation:**
+
 ```sql
 COUNT(CASE WHEN f.datetime <= t.datetime THEN 1 END) AS total_prior_failures,
 
@@ -156,6 +165,7 @@ COUNT(DISTINCT f.failure) AS distinct_failure_types
 **Question:** Will this machine fail in the next 24 hours?
 
 **Implementation:**
+
 ```sql
 CASE WHEN EXISTS (
     SELECT 1 FROM failures fut
@@ -166,15 +176,17 @@ CASE WHEN EXISTS (
 ```
 
 **Key Properties:**
+
 1. **Strictly future-looking:** Checks for failures AFTER observation_time
 2. **24-hour window:** Matches the business requirement (predictive maintenance horizon)
 3. **Leakage prevention:** The EXISTS subquery only executes after all features are computed, ensuring no feature "sees" the label
 
 **Interpretation:**
+
 - `label = 1`: Failure occurred within 24h after observation_time (positive example)
 - `label = 0`: No failure in 24h window (negative example)
 
-**Class Imbalance:** Expected ~5-10% positive class (fewer machines fail than don't). Handled during model training via `scale_pos_weight` (XGBoost) or SMOTE (if needed).
+**Class Imbalance:** 1.96% positive class (17,184 failures out of 876,100 observations). Handled via `scale_pos_weight=49.98` in XGBoost and `class_weight='balanced'` in Logistic Regression.
 
 ---
 
@@ -187,11 +199,13 @@ CASE WHEN EXISTS (
 Observation: Machine A at 2024-01-15 10:00 UTC
 
 Features computed:
+
 - `voltage_mean_3h`: Average voltage from 2024-01-15 07:00 to 10:00 ✓ (available)
 - `error_count_24h`: Errors from 2024-01-15 10:00 - 24h to 10:00 ✓ (available)
 - `days_since_last_failure`: Days since last failure <= 2024-01-15 10:00 ✓ (available)
 
 Label (target) computed:
+
 - `label`: Does failure occur 2024-01-15 10:00 < datetime <= 2024-01-16 10:00? ✓ (not used for feature computation)
 
 ---
@@ -201,6 +215,7 @@ Label (target) computed:
 ### Cardinality & Join Strategy
 
 **Telemetry Features CTE:**
+
 ```sql
 FROM telemetry t
 LEFT JOIN telemetry t2 ON t.machineid = t2.machineid 
@@ -217,12 +232,14 @@ GROUP BY t.machineid, t.datetime
 ### Feature Table Clustering
 
 **Index:**
+
 ```sql
 CREATE INDEX idx_model_input_features_machine_time 
   ON model_input_features(machineid, observation_time);
 ```
 
 Enables fast retrieval during:
+
 1. Model training (SELECT all features for a machine)
 2. Batch scoring (SELECT recent features for a machine)
 3. Monitoring (SELECT features for drift detection)
@@ -234,35 +251,23 @@ Enables fast retrieval during:
 **NULLs can arise from:**
 
 1. **No sensor readings in window** → `voltage_mean_3h = NULL`
-   - Solution: Model training imputes with 0 or column mean
+   - Imputed with column mean via `SimpleImputer(strategy='mean')` during training
 
 2. **No errors ever recorded** → `hours_since_last_error = NULL`
-   - Solution: Impute with a large value (e.g., 999999) or flag with a binary "has_error_history" feature
+   - Imputed with column mean; effectively assigns the average time-since-error across machines
 
 3. **No maintenance records** → `days_since_last_maintenance = NULL`
-   - Solution: Impute with machine age or use NULL as signal (model interprets as "no maintenance data")
+   - Imputed with column mean; signals machine has not been recently serviced
 
-**Recommended Approach (Phase 2):**
-- Scikit-learn's `SimpleImputer(strategy='mean')` for numeric features
-- Or create binary "has_history" features to preserve missingness signal
+All imputation is fit on training data only and applied to val/test sets to prevent leakage.
 
 ---
 
 ## Observation Time Selection
 
-**Current Query:**
-```sql
-WHERE t.observation_time > CURRENT_DATE - INTERVAL '90 days'
-```
+The feature pipeline builds one row per telemetry reading across the full historical dataset (no date filter). This gives 876,100 training rows covering one year of operations across 100 machines, which is sufficient for stable model training.
 
-Limits feature table to last 90 days. Rationale:
-- Captures seasonal patterns (3-month cycle)
-- Keeps table size manageable (for demo)
-- Production: Adjust based on data retention policy
-
-**For production retraining:**
-- Use full historical data (or trailing 1-2 years)
-- Monitor feature statistics (mean, std, min/max) for drift
+For production retraining, the trailing window should be adjusted based on data retention policy and concept drift monitoring results.
 
 ---
 
@@ -295,12 +300,14 @@ FROM model_input_features;
 
 ---
 
-## Next Steps (Phase 2: Model Training)
+## Model Training Summary
 
-With the feature table populated, the next phase trains models:
+Feature engineering is complete. Models trained on this feature set:
 
-1. **Baseline (Logistic Regression):** Cross-validate on features as-is
-2. **Main (XGBoost):** Handle feature scaling, class imbalance, hyperparameter tuning
-3. **Ensemble:** Stack predictions, optimize threshold against cost matrix
+| Model | PR-AUC | Recall | F1 |
+| --- | --- | --- | --- |
+| Logistic Regression (baseline) | 0.8285 | 0.9895 | 0.6405 |
+| XGBoost | 0.9999 | 1.0000 | 0.9919 |
+| Ensemble (threshold=0.729) | 0.9992 | 0.9985 | 0.9936 |
 
-Feature engineering is now **complete and production-ready**.
+See [README.MD](../README.MD) for full results and confusion matrix breakdown.

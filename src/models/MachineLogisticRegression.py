@@ -11,17 +11,17 @@ Class-based wrapper around scikit-learn's LogisticRegression that provides:
 import json
 import pickle
 from pathlib import Path
-from typing import Tuple, Dict, List
+from typing import Dict
 
 import numpy as np
 import pandas as pd
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
-    precision_recall_curve, auc, confusion_matrix, 
-    f1_score, cross_val_score
+    precision_recall_curve, auc, confusion_matrix,
+    f1_score
 )
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
 
 
@@ -83,15 +83,15 @@ class MachineLogisticRegression:
         
         # Impute missing values
         if fit:
-            X_processed[numeric_cols] = self.imputer.fit_transform(X[numeric_cols])
+            X_processed[numeric_cols] = np.asarray(self.imputer.fit_transform(X[numeric_cols]))  # type: ignore[index]
         else:
-            X_processed[numeric_cols] = self.imputer.transform(X[numeric_cols])
-        
+            X_processed[numeric_cols] = np.asarray(self.imputer.transform(X[numeric_cols]))  # type: ignore[index]
+
         # Standardize numeric features
         if fit:
-            X_processed[numeric_cols] = self.scaler.fit_transform(X_processed[numeric_cols])
+            X_processed[numeric_cols] = np.asarray(self.scaler.fit_transform(X_processed[numeric_cols]))  # type: ignore[index]
         else:
-            X_processed[numeric_cols] = self.scaler.transform(X_processed[numeric_cols])
+            X_processed[numeric_cols] = np.asarray(self.scaler.transform(X_processed[numeric_cols]))  # type: ignore[index]
         
         # One-hot encode categorical features
         if categorical_cols:

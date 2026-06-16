@@ -11,7 +11,7 @@ Class-based wrapper around xgboost.XGBClassifier that provides:
 import json
 import pickle
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -89,15 +89,15 @@ class MachineXGBoost:
         
         # Impute
         if fit:
-            X_processed[numeric_cols] = self.imputer.fit_transform(X[numeric_cols])
+            X_processed[numeric_cols] = np.asarray(self.imputer.fit_transform(X[numeric_cols]))  # type: ignore[index]
         else:
-            X_processed[numeric_cols] = self.imputer.transform(X[numeric_cols])
-        
+            X_processed[numeric_cols] = np.asarray(self.imputer.transform(X[numeric_cols]))  # type: ignore[index]
+
         # Standardize
         if fit:
-            X_processed[numeric_cols] = self.scaler.fit_transform(X_processed[numeric_cols])
+            X_processed[numeric_cols] = np.asarray(self.scaler.fit_transform(X_processed[numeric_cols]))  # type: ignore[index]
         else:
-            X_processed[numeric_cols] = self.scaler.transform(X_processed[numeric_cols])
+            X_processed[numeric_cols] = np.asarray(self.scaler.transform(X_processed[numeric_cols]))  # type: ignore[index]
         
         # One-hot encode
         if categorical_cols:
@@ -111,7 +111,7 @@ class MachineXGBoost:
         X_val: pd.DataFrame,
         y_train: pd.Series,
         y_val: pd.Series,
-        param_grid: Dict = None,
+        param_grid: Dict | None = None,
     ) -> Dict:
         """
         Grid search for best hyperparameters.
@@ -154,11 +154,10 @@ class MachineXGBoost:
                         'verbosity': 0,
                     }
                     
-                    model = xgb.XGBClassifier(**params)
+                    model = xgb.XGBClassifier(**params, early_stopping_rounds=10)
                     model.fit(
                         X_train_scaled, y_train,
                         eval_set=[(X_val_scaled, y_val)],
-                        early_stopping_rounds=10,
                         verbose=False,
                     )
                     

@@ -50,7 +50,7 @@ def main():
         X, y, test_size=0.2, random_state=42, stratify=y
     )
     X_train, X_val, y_train, y_val = train_test_split(
-        X_train, y_train, test_size=0.1/(1-0.2), random_state=42, stratify=y_train
+        X_train, y_train, test_size=0.25, random_state=42, stratify=y_train
     )
     print(f"✓ Train: {len(X_train):,} | Val: {len(X_val):,} | Test: {len(X_test):,}")
     
@@ -67,7 +67,7 @@ def main():
     best_params = model.tune_hyperparameters(
         X_train, X_val, y_train, y_val, param_grid
     )
-    print(f"✓ Best params found")
+    print(f"✓ Best params: depth={best_params['max_depth']} lr={best_params['learning_rate']} n_est={best_params['n_estimators']}")
     
     # Fit on train+val
     print("\n[4/5] Training final model on train+val...")
@@ -84,7 +84,7 @@ def main():
     
     # Save
     print("\n[5/5] Saving artifacts...")
-    model.save(Path("models"))
+    model.save(Path("model_artifacts"))
     print("✓ Model saved to models/")
     
     print("\n" + "="*60)

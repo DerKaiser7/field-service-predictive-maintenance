@@ -39,7 +39,7 @@ def main():
         X, y, test_size=0.2, random_state=42, stratify=y
     )
     X_train, X_val, y_train, y_val = train_test_split(
-        X_train, y_train, test_size=0.1/(1-0.2), random_state=42, stratify=y_train
+        X_train, y_train, test_size=0.25, random_state=42, stratify=y_train
     )
     print(f"✓ Train: {len(X_train):,} | Val: {len(X_val):,} | Test: {len(X_test):,}")
     
@@ -64,7 +64,7 @@ def main():
     
     # Save
     print("\nSaving artifacts...")
-    model.save(Path("models"))
+    model.save(Path("model_artifacts"))
     print("✓ Model saved to models/")
     
     print("\n" + "="*60)
