@@ -25,19 +25,35 @@
 -- Baseline for understanding maintenance activity volume.
 -- ---------------------------------------------------------------
 
--- TODO: Write query here
--- Columns: component, maintenance_count, distinct_machines_serviced
+SELECT
+    comp                                    AS component,
+    COUNT(*)                                AS maintenance_count,
+    COUNT(DISTINCT machineid)               AS distinct_machines_serviced
+FROM maintenance
+GROUP BY comp
+ORDER BY maintenance_count DESC;
 
 
 -- ---------------------------------------------------------------
 -- BLOCK 2: Failures after maintenance — did it work?
 -- For each maintenance event, check if a failure occurred within
--- 30 days afterward. Join on machine_id + time window.
+-- 30 days afterward. Join on machineid + time window.
 -- ---------------------------------------------------------------
 
--- TODO: Write query here
--- Columns: machine_id, maintenance_datetime, component,
---          failure_within_30d (boolean or failure_datetime)
+SELECT
+    m.machineid,
+    m.datetime                              AS maintenance_datetime,
+    m.comp                                  AS component,
+    f.datetime                              AS failure_datetime,
+    CASE WHEN f.machineid IS NOT NULL
+         THEN TRUE ELSE FALSE
+    END                                     AS failure_within_30d
+FROM maintenance m
+LEFT JOIN failures f
+    ON  f.machineid = m.machineid
+    AND f.datetime  > m.datetime
+    AND f.datetime <= m.datetime + INTERVAL '30 days'
+ORDER BY m.machineid, m.datetime;
 
 
 -- ---------------------------------------------------------------
@@ -46,32 +62,83 @@
 -- failure rate? Builds the maintenance effectiveness scorecard.
 -- ---------------------------------------------------------------
 
--- TODO: Write query here
--- Columns: component, total_replacements, failures_within_30d,
---          post_maintenance_failure_rate
+WITH maintenance_outcomes AS (
+    SELECT
+        m.machineid,
+        m.datetime  AS maintenance_datetime,
+        m.comp      AS component,
+        f.datetime  AS failure_datetime
+    FROM maintenance m
+    LEFT JOIN failures f
+        ON  f.machineid = m.machineid
+        AND f.datetime  > m.datetime
+        AND f.datetime <= m.datetime + INTERVAL '30 days'
+)
+SELECT
+    component,
+    COUNT(*)                                            AS total_replacements,
+    COUNT(failure_datetime)                             AS failures_within_30d,
+    ROUND(
+        COUNT(failure_datetime)::NUMERIC / COUNT(*), 4
+    )                                                   AS post_maintenance_failure_rate
+FROM maintenance_outcomes
+GROUP BY component
+ORDER BY post_maintenance_failure_rate ASC;
 
 
 -- ---------------------------------------------------------------
 -- BLOCK 4: Anti-join — machines that had maintenance but NO failure
--- LEFT JOIN failures ON machine_id + failure AFTER maintenance
--- WHERE failure.machine_id IS NULL
+-- LEFT JOIN failures ON machineid + failure AFTER maintenance
+-- WHERE failure.machineid IS NULL
 -- This finds machines where maintenance genuinely appeared to work.
 -- Classic anti-join pattern — interviewers test this explicitly.
 -- ---------------------------------------------------------------
 
--- TODO: Write query here
--- Columns: machine_id, maintenance_datetime, component
--- Filter: no failure recorded after the maintenance event
+SELECT
+    m.machineid,
+    m.datetime      AS maintenance_datetime,
+    m.comp          AS component
+FROM maintenance m
+LEFT JOIN failures f
+    ON  f.machineid = m.machineid
+    AND f.datetime  > m.datetime
+WHERE f.machineid IS NULL
+ORDER BY m.machineid, m.datetime;
 
 
 -- ---------------------------------------------------------------
 -- BLOCK 5: Time from maintenance to next failure
 -- For machines that did eventually fail after maintenance,
 -- what is the typical protection window?
--- Uses LAG/LEAD or a self-join on ordered events.
+-- Uses LEAD window function on ordered events per machine.
 -- ---------------------------------------------------------------
 
--- TODO: Write query here
--- Columns: machine_id, component, maintenance_datetime,
---          next_failure_datetime, days_until_failure
--- Aggregate: avg_days_until_failure per component
+WITH ordered_events AS (
+    SELECT
+        m.machineid,
+        m.comp                                                      AS component,
+        m.datetime                                                   AS maintenance_datetime,
+        MIN(f.datetime)                                              AS next_failure_datetime
+    FROM maintenance m
+    JOIN failures f
+        ON  f.machineid = m.machineid
+        AND f.datetime  > m.datetime
+    GROUP BY m.machineid, m.comp, m.datetime
+)
+SELECT
+    machineid,
+    component,
+    maintenance_datetime,
+    next_failure_datetime,
+    ROUND(
+        EXTRACT(EPOCH FROM (next_failure_datetime - maintenance_datetime)) / 86400.0,
+        1
+    )                                                               AS days_until_failure,
+    ROUND(
+        AVG(
+            EXTRACT(EPOCH FROM (next_failure_datetime - maintenance_datetime)) / 86400.0
+        ) OVER (PARTITION BY component),
+        1
+    )                                                               AS avg_days_until_failure
+FROM ordered_events
+ORDER BY component, days_until_failure;
