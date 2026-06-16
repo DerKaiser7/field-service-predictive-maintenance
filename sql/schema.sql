@@ -109,11 +109,99 @@ CREATE TABLE prediction_logs (
 );
 
 -- ===================================
+-- FEATURE TABLE
+-- Engineered features for model training
+-- ===================================
+
+CREATE TABLE model_input_features (
+    feature_id BIGSERIAL PRIMARY KEY,
+    machineid TEXT NOT NULL REFERENCES machines(machineid),
+    observation_time TIMESTAMP NOT NULL,
+    
+    -- Static features
+    model VARCHAR(20),
+    age INTEGER,
+    age_category VARCHAR(20),
+    
+    -- Telemetry: 3h windows
+    voltage_mean_3h NUMERIC(8,4),
+    voltage_std_3h NUMERIC(8,4),
+    voltage_min_3h NUMERIC(8,4),
+    voltage_max_3h NUMERIC(8,4),
+    rotation_mean_3h NUMERIC(8,4),
+    rotation_std_3h NUMERIC(8,4),
+    rotation_min_3h NUMERIC(8,4),
+    rotation_max_3h NUMERIC(8,4),
+    pressure_mean_3h NUMERIC(8,4),
+    pressure_std_3h NUMERIC(8,4),
+    pressure_min_3h NUMERIC(8,4),
+    pressure_max_3h NUMERIC(8,4),
+    vibration_mean_3h NUMERIC(8,4),
+    vibration_std_3h NUMERIC(8,4),
+    vibration_min_3h NUMERIC(8,4),
+    vibration_max_3h NUMERIC(8,4),
+    
+    -- Telemetry: 12h windows
+    voltage_mean_12h NUMERIC(8,4),
+    voltage_std_12h NUMERIC(8,4),
+    rotation_mean_12h NUMERIC(8,4),
+    rotation_std_12h NUMERIC(8,4),
+    pressure_mean_12h NUMERIC(8,4),
+    pressure_std_12h NUMERIC(8,4),
+    vibration_mean_12h NUMERIC(8,4),
+    vibration_std_12h NUMERIC(8,4),
+    
+    -- Telemetry: 24h windows
+    voltage_mean_24h NUMERIC(8,4),
+    voltage_std_24h NUMERIC(8,4),
+    rotation_mean_24h NUMERIC(8,4),
+    rotation_std_24h NUMERIC(8,4),
+    pressure_mean_24h NUMERIC(8,4),
+    pressure_std_24h NUMERIC(8,4),
+    vibration_mean_24h NUMERIC(8,4),
+    vibration_std_24h NUMERIC(8,4),
+    
+    -- Error features
+    error_count_24h INTEGER,
+    hours_since_last_error NUMERIC(10,2),
+    distinct_error_types INTEGER,
+    
+    -- Maintenance features
+    days_since_last_maintenance NUMERIC(10,2),
+    component_diversity INTEGER,
+    
+    -- Failure history features
+    total_prior_failures INTEGER,
+    days_since_last_failure NUMERIC(10,2),
+    distinct_failure_types INTEGER,
+    
+    -- Label (target)
+    label INTEGER CHECK (label IN (0, 1)),
+    
+    UNIQUE(machineid, observation_time)
+);
+
+-- ===================================
+-- MONITORING TABLE
+-- MLOps: Track data/prediction drift alerts
+-- ===================================
+
+CREATE TABLE model_monitoring (
+    monitor_id BIGSERIAL PRIMARY KEY,
+    checked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    feature_name VARCHAR,
+    drift_metric NUMERIC(6,4),
+    alert_triggered BOOLEAN DEFAULT FALSE,
+    alert_message TEXT
+);
+
+-- ===================================
 -- Indexes for query performance
 -- ===================================
 
-CREATE INDEX IF NOT EXISTS idx_telemetry_machine_dt ON telemetry(machine_id, datetime);
-CREATE INDEX IF NOT EXISTS idx_errors_machine_dt ON errors(machine_id, datetime);
-CREATE INDEX IF NOT EXISTS idx_failures_machine_dt ON failures(machine_id, datetime);
-CREATE INDEX IF NOT EXISTS idx_maint_machine_dt ON maintenance(machine_id, datetime);
-CREATE INDEX IF NOT EXISTS idx_prediction_logs_machine_obs_dt ON prediction_logs(machine_id, observation_time);
+CREATE INDEX IF NOT EXISTS idx_telemetry_machine_dt ON telemetry(machineid, datetime);
+CREATE INDEX IF NOT EXISTS idx_errors_machine_dt ON errors(machineid, datetime);
+CREATE INDEX IF NOT EXISTS idx_failures_machine_dt ON failures(machineid, datetime);
+CREATE INDEX IF NOT EXISTS idx_maint_machine_dt ON maintenance(machineid, datetime);
+CREATE INDEX IF NOT EXISTS idx_prediction_logs_machine_obs_dt ON prediction_logs(machineid, observation_time);
+CREATE INDEX IF NOT EXISTS idx_model_input_features_machine_time ON model_input_features(machineid, observation_time);
