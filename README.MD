@@ -2,7 +2,7 @@
 
 Binary ensemble classifier that predicts whether an industrial machine will fail within the next 24 hours, enabling proactive maintenance intervention and reducing unplanned downtime.
 
-**[Live Demo](https://predictive-maintenance.streamlit.app) · [Dataset](https://www.kaggle.com/datasets/arnabbiswas1/microsoft-azure-predictive-maintenance)**
+**[Live Demo](https://field-service-maintenance.streamlit.app) · [Dataset](https://www.kaggle.com/datasets/arnabbiswas1/microsoft-azure-predictive-maintenance)**
 
 ---
 
@@ -128,6 +128,7 @@ Train/val/test split: 60/20/20 (stratified). All metrics on held-out test set.
 │   │   ├── load.py
 │   │   └── promote_to_base.py
 │   ├── models/
+│   │   ├── BaseMachineModel.py
 │   │   ├── MachineLogisticRegression.py
 │   │   ├── MachineXGBoost.py
 │   │   ├── EnsembleModel.py
