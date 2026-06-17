@@ -334,7 +334,7 @@ with tab_demo:
 
         st.markdown("---")
         st.markdown(f"**Model:** {m['model']}")
-        st.markdown(f"**Age:** {m['age']} years · {m['age_category'].replace('_', '-')}")
+        st.markdown(f"**Age:** {m['age']} years")
         st.markdown(f"**Prior failures:** {int(m['prior_failures'])}")
         st.markdown(f"**Errors (last 24h):** {int(m['error_count_24h'])}")
         st.markdown(f"**Hours since last error:** {m['hours_since_last_error']:.0f}h")
