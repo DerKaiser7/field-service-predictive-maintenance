@@ -1,0 +1,6 @@
+{
+  "optimal_threshold": 0.7289949748743719,
+  "cost_fn": 5,
+  "cost_fp": 1,
+  "rationale": "Threshold swept from 0.01 to 0.99 on val set. Selected 0.729 to minimise (5*FN + 1*FP). Missed failures penalised 5x over false alarms to reflect production maintenance cost asymmetry."
+}

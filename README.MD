@@ -1,18 +1,18 @@
-# Predictive Maintenance System
+# Predictive Maintenance System — Azure PdM Dataset
 
-Binary classifier that predicts whether a machine will fail within the next 24 hours, enabling proactive intervention and reducing unplanned downtime.
+Binary ensemble classifier that predicts whether an industrial machine will fail within the next 24 hours, enabling proactive maintenance intervention and reducing unplanned downtime.
+
+**[Live Demo](https://predictive-maintenance.streamlit.app) · [Dataset](https://www.kaggle.com/datasets/arnabbiswas1/microsoft-azure-predictive-maintenance)**
 
 ---
 
 ## Problem
 
-Unplanned machine failures are significantly more costly than scheduled maintenance — both in repair cost and lost production time. Reactive maintenance (fix it after it breaks) wastes resources; fixed-interval maintenance (service every N days regardless of condition) is inefficient.
-
-This system uses historical sensor readings, error logs, and maintenance records to predict failures 24 hours in advance, enabling maintenance teams to act before failure occurs.
+Unplanned machine failures are significantly more costly than scheduled maintenance — both in repair cost and lost production time. This system uses historical sensor readings, error logs, and maintenance records to predict failures 24 hours in advance.
 
 **ML Task:** Binary classification — predict `label=1` if a failure occurs within 24 hours of a given observation, `label=0` otherwise.
 
-**Dataset:** Microsoft Azure Predictive Maintenance dataset — 100 machines, 876,100 hourly telemetry observations over one year.
+**Dataset:** Microsoft Azure Predictive Maintenance — 100 machines, 876,100 hourly telemetry observations over one year.
 
 ---
 
@@ -32,9 +32,9 @@ Model Training
     ├── src/models/train_xgboost.py   →  XGBoost
     └── src/models/ensemble.py        →  Stacked ensemble + threshold optimisation
     ↓  model_artifacts/
-FastAPI Prediction Service (Phase 5)
+FastAPI Prediction Service  (src/api/main.py)
     ↓
-Next.js Dashboard (Phase 6)
+Streamlit Demo  (dashboard/app.py)
 ```
 
 ---
@@ -49,7 +49,7 @@ Next.js Dashboard (Phase 6)
 | `maintenance` | 3,286 | Maintenance history by component |
 | `failures` | 761 | Failure events with failure type |
 
-**Class balance:** 17,184 positive labels (1.96%) — expected imbalance handled via `scale_pos_weight` in XGBoost and `class_weight='balanced'` in Logistic Regression.
+**Class balance:** 17,184 positive labels (1.96%) — handled via `scale_pos_weight=49.98` in XGBoost and `class_weight='balanced'` in Logistic Regression.
 
 ---
 
@@ -58,7 +58,7 @@ Next.js Dashboard (Phase 6)
 42 engineered features per observation, all computed strictly from data available at or before `observation_time` (no leakage):
 
 | Category | Features |
-|---|---|
+| --- | --- |
 | Static | `model`, `age`, `age_category` |
 | Telemetry 3h | mean/std/min/max for voltage, rotation, pressure, vibration (16 features) |
 | Telemetry 12h | mean/std for all four sensors (8 features) |
@@ -77,19 +77,19 @@ See [docs/FEATURE_ENGINEERING.md](docs/FEATURE_ENGINEERING.md) for full rational
 
 **Three-stage pipeline:**
 
-1. **Baseline — Logistic Regression** (`class_weight='balanced'`, 5-fold CV): Sanity check and meta-learner input. Interpretable coefficients justify feature inclusion.
+1. **Baseline — Logistic Regression** (`class_weight='balanced'`, 5-fold CV): Sanity check and meta-learner input.
 
 2. **Main — XGBoost** (`scale_pos_weight=49.98`, grid search over depth/lr/estimators): Production-grade boosted model tuned on PR-AUC.
 
 3. **Ensemble — Stacked meta-learner**: Logistic Regression trained on val-set predictions from LR + XGBoost. Threshold optimised against cost matrix: missed failure (FN) penalised 5× over false alarm (FP).
 
-**Primary metric:** PR-AUC (preferred over ROC-AUC for imbalanced data — sensitive to false positives among predicted positives).
+**Primary metric:** PR-AUC (preferred over ROC-AUC for imbalanced data).
 
 ---
 
 ## Results
 
-Train/Val/Test split: 60/20/20 (stratified). All metrics on held-out test set.
+Train/val/test split: 60/20/20 (stratified). All metrics on held-out test set.
 
 | Model | PR-AUC | Precision | Recall | F1 |
 | --- | --- | --- | --- | --- |
@@ -101,7 +101,7 @@ Train/Val/Test split: 60/20/20 (stratified). All metrics on held-out test set.
 
 - True Positives: 3,432 — True Negatives: 171,744
 - False Positives: 39 — False Negatives: 5
-- Business cost: 64 (vs. 25 FP-only cost of random threshold)
+- Business cost: 64
 
 ---
 
@@ -109,23 +109,24 @@ Train/Val/Test split: 60/20/20 (stratified). All metrics on held-out test set.
 
 ```text
 .
-├── data/raw/                        # Source CSVs (gitignored)
+├── dashboard/
+│   ├── app.py                       # Streamlit demo
+│   └── .streamlit/config.toml       # Theme config
 ├── docs/
-│   └── FEATURE_ENGINEERING.md       # Feature engineering strategy and rationale
-├── model_artifacts/                 # Trained model files (gitignored)
+│   └── FEATURE_ENGINEERING.md
+├── model_artifacts/                 # Trained model files (committed)
 │   ├── baseline_lr.pkl
 │   ├── xgboost_main.pkl
 │   ├── ensemble_meta_learner.pkl
 │   └── optimal_threshold.json
 ├── sql/
-│   ├── schema.sql                   # PostgreSQL schema (staging + base + feature tables)
-│   ├── eda/                         # Exploratory analysis queries (00–06)
-│   └── features/
-│       └── build_features.sql       # Feature engineering pipeline
+│   ├── schema.sql
+│   ├── eda/                         # Exploratory queries (00–06)
+│   └── features/build_features.sql
 ├── src/
 │   ├── data_operations/
-│   │   ├── load.py                  # CSV → staging tables
-│   │   └── promote_to_base.py       # Staging → base tables
+│   │   ├── load.py
+│   │   └── promote_to_base.py
 │   ├── models/
 │   │   ├── MachineLogisticRegression.py
 │   │   ├── MachineXGBoost.py
@@ -133,9 +134,7 @@ Train/Val/Test split: 60/20/20 (stratified). All metrics on held-out test set.
 │   │   ├── train_baseline.py
 │   │   ├── train_xgboost.py
 │   │   └── ensemble.py
-│   ├── api/                         # FastAPI serving layer (Phase 5)
-│   └── features/
-├── docker-compose.yml               # PostgreSQL (gitignored)
+│   └── api/main.py                  # FastAPI serving layer
 ├── requirements.txt
 └── README.MD
 ```
@@ -165,4 +164,10 @@ psql -h localhost -U $POSTGRES_USER -d $POSTGRES_DB -f sql/features/build_featur
 python -m src.models.train_baseline
 python -m src.models.train_xgboost
 python -m src.models.ensemble
+
+# 6. Run Streamlit demo (uses committed model artifacts — no DB required)
+streamlit run dashboard/app.py
+
+# 7. Run FastAPI (optional)
+uvicorn src.api.main:app --port 8000
 ```
