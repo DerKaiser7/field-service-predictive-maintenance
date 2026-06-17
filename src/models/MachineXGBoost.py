@@ -102,7 +102,15 @@ class MachineXGBoost:
         # One-hot encode
         if categorical_cols:
             X_processed = pd.get_dummies(X_processed, columns=categorical_cols, drop_first=True)
-        
+            # Align to training feature space — single-row inference may not produce
+            # all dummy columns that were present during fit.
+            booster_features = self.model.get_booster().feature_names
+            if booster_features:
+                for col in booster_features:
+                    if col not in X_processed.columns:
+                        X_processed[col] = 0.0
+                X_processed = X_processed[booster_features]
+
         return X_processed
     
     def tune_hyperparameters(

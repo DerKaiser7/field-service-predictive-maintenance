@@ -96,7 +96,15 @@ class MachineLogisticRegression:
         # One-hot encode categorical features
         if categorical_cols:
             X_processed = pd.get_dummies(X_processed, columns=categorical_cols, drop_first=True)
-        
+            # Single-row inference may not produce all training dummy columns;
+            # align to the fitted model's expected feature space.
+            if hasattr(self.model, "feature_names_in_") and self.model.feature_names_in_ is not None:
+                expected = list(self.model.feature_names_in_)
+                for col in expected:
+                    if col not in X_processed.columns:
+                        X_processed[col] = 0.0
+                X_processed = X_processed[expected]
+
         return X_processed
     
     def cross_validate(

@@ -37,9 +37,9 @@ class EnsembleModel:
     COST_FP = 1
 
     def __init__(self) -> None:
-        self.lr: MachineLogisticRegression | None = None
-        self.xgb: MachineXGBoost | None = None
-        self.meta_learner: LogisticRegression | None = None
+        self.lr: MachineLogisticRegression
+        self.xgb: MachineXGBoost 
+        self.meta_learner: LogisticRegression
         self.threshold: float = 0.5
         self.metrics: dict = {}
 
