@@ -5,9 +5,9 @@
     "test_recall": 1.0,
     "test_specificity": 0.9996740073231927,
     "test_f1": 0.9919191919191919,
-    "test_tp": 3437,
-    "test_fp": 56,
-    "test_tn": 171727,
-    "test_fn": 0
+    "test_tp": 3437.0,
+    "test_fp": 56.0,
+    "test_tn": 171727.0,
+    "test_fn": 0.0
   }
 }
