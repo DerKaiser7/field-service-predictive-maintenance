@@ -138,7 +138,8 @@ Train/val/test split: 60/20/20 (stratified). All metrics on held-out test set.
 │   │   ├── EnsembleModel.py
 │   │   ├── train_baseline.py
 │   │   ├── train_xgboost.py
-│   │   └── ensemble.py
+│   │   ├── ensemble.py
+│   │   └── ablation_leakage_check.py
 │   └── api/
 │       ├── main.py                  # FastAPI serving layer
 │       ├── Dockerfile
@@ -157,7 +158,7 @@ Trade-offs made deliberately for a demo context:
 - **Model artifacts are committed to git** (`model_artifacts/`, ~624KB total). No model registry or external storage — appropriate at this size, but would move to one (MLflow registry, S3) if artifacts grew or if multiple model versions needed tracking.
 - **Live Demo profiles are hardcoded**, not queried from a database. Streamlit Community Cloud's free tier has no database access, so `dashboard/app.py` ships 20 machine profiles designed to span the LOW/MEDIUM/HIGH risk spectrum. The ensemble inference and SHAP explanations on those profiles are real; the input data is not.
 - **CORS is fully open** (`allow_origins=["*"]`) in `src/api/main.py`. Demo API with no auth surface — would be scoped to specific origins before handling real traffic.
-- **XGBoost's near-perfect test PR-AUC (0.9999)** was treated as a leakage red flag during development, not just a good result — the dataset has clear failure precursors in the 24h window, which held up under inspection. `tests/test_feature_leakage.py` adds a static regression guard against the most likely leakage mistake (a feature CTE picking up the label's forward-looking window).
+- **XGBoost's near-perfect test PR-AUC (0.9999)** was treated as a leakage red flag during development, not just a good result. `src/models/ablation_leakage_check.py` retrains the model with `total_prior_failures`, `days_since_last_failure`, and `distinct_failure_types` removed — these are the features most structurally similar to the label, since both derive from the `failures` table. Test PR-AUC drops by only 0.0003 (0.9999 → 0.9995, FN: 0 → 4), meaning the score is driven by telemetry/error signal, not by those features leaking future failure information. `tests/test_feature_leakage.py` adds a static regression guard against the most likely leakage mistake (a feature CTE picking up the label's forward-looking window).
 
 ## Testing
 

@@ -1,0 +1,30 @@
+{
+  "dropped_features": [
+    "total_prior_failures",
+    "days_since_last_failure",
+    "distinct_failure_types"
+  ],
+  "full_feature_set": {
+    "test_pr_auc": 0.9998532191301243,
+    "test_precision": 0.9839679358717435,
+    "test_recall": 1.0,
+    "test_specificity": 0.9996740073231927,
+    "test_f1": 0.9919191919191919,
+    "test_tp": 3437.0,
+    "test_fp": 56.0,
+    "test_tn": 171727.0,
+    "test_fn": 0.0
+  },
+  "failure_history_removed": {
+    "test_pr_auc": 0.9995205418205765,
+    "test_precision": 0.9791785510553337,
+    "test_recall": 0.9988361943555426,
+    "test_specificity": 0.9995750452605904,
+    "test_f1": 0.9889096932161889,
+    "test_tp": 3433.0,
+    "test_fp": 73.0,
+    "test_tn": 171710.0,
+    "test_fn": 4.0
+  },
+  "pr_auc_drop": 0.0003
+}
