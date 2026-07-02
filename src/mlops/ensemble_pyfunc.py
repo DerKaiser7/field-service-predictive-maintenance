@@ -10,14 +10,22 @@ already reads.
 
 from pathlib import Path
 
-import mlflow.pyfunc
+from mlflow.pyfunc.model import PythonModel
 
 from src.models.EnsembleModel import EnsembleModel
 
 
-class EnsemblePyfuncModel(mlflow.pyfunc.PythonModel):
-    def load_context(self, context) -> None:
+class EnsemblePyfuncModel(PythonModel):
+    """MLflow wraps this in its own PythonModelContext/params machinery, so
+    the base class's `predict`/`load_context` signatures are intentionally
+    left untyped here too — annotating them tighter than the (also untyped)
+    base method trips Pyright's override-compatibility check without fixing
+    anything real."""
+
+    def load_context(self, context):
         self.ensemble = EnsembleModel.load(Path(context.artifacts["model_artifacts"]))
 
-    def predict(self, context, model_input):
+    def predict(self, context, model_input, params=None):  # pyright: ignore[reportIncompatibleMethodOverride]
+        # context/params are part of the PythonModel interface but unused here —
+        # the ensemble was already loaded onto self in load_context.
         return self.ensemble.predict_proba(model_input)
