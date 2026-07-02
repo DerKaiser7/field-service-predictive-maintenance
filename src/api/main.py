@@ -268,7 +268,7 @@ def predict(req: PredictRequest, background_tasks: BackgroundTasks) -> Predictio
     X = _build_input_df(req.features)
 
     try:
-        prob = float(_ensemble.predict_proba(X))
+        prob = float(_ensemble.predict_proba(X)[0])
     except Exception as exc:
         logger.error("predict_proba failed: %s", exc)
         raise HTTPException(status_code=422, detail=f"Prediction failed: {exc}") from exc

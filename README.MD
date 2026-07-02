@@ -1,5 +1,7 @@
 # Predictive Maintenance System — Azure PdM Dataset
 
+![Tests](https://github.com/DerKaiser7/field-service-predictive-maintenance/actions/workflows/tests.yml/badge.svg)
+
 Binary ensemble classifier that predicts whether an industrial machine will fail within the next 24 hours, enabling proactive maintenance intervention and reducing unplanned downtime.
 
 **[Live Demo](https://field-service-maintenance.streamlit.app) · [Dataset](https://www.kaggle.com/datasets/arnabbiswas1/microsoft-azure-predictive-maintenance)**
@@ -141,6 +143,14 @@ Train/val/test split: 60/20/20 (stratified). All metrics on held-out test set.
 ```
 
 ---
+
+## Testing
+
+```bash
+pytest tests/
+```
+
+29 tests cover: preprocessing/imputation/one-hot alignment (`BaseMachineModel`), fit → predict → save → load roundtrips for each model class, ensemble stacking and cost-threshold optimisation, a static leakage-regression guard on `sql/features/build_features.sql`, and FastAPI contract tests run against the real committed model artifacts (no mocking, no database required). Runs on every push/PR via `.github/workflows/tests.yml`.
 
 ## Running Locally
 
