@@ -6,6 +6,8 @@ Binary ensemble classifier that predicts whether an industrial machine will fail
 
 **[Live Demo](https://field-service-maintenance.streamlit.app) · [Dataset](https://www.kaggle.com/datasets/arnabbiswas1/microsoft-azure-predictive-maintenance)**
 
+> The dashboard's "Live Demo" tab runs real ensemble inference, but on 20 hand-authored machine profiles rather than live database rows — Streamlit Community Cloud has no database access. Telemetry sparklines are simulated waveforms, not sampled sensor data. See [Design Notes](#design-notes) below.
+
 ---
 
 ## Problem
@@ -81,7 +83,7 @@ See [docs/FEATURE_ENGINEERING.md](docs/FEATURE_ENGINEERING.md) for full rational
 
 1. **Baseline — Logistic Regression** (`class_weight='balanced'`, 5-fold CV): Sanity check and meta-learner input.
 
-2. **Main — XGBoost** (`scale_pos_weight=49.98`, grid search over depth/lr/estimators): Production-grade boosted model tuned on PR-AUC.
+2. **Main — XGBoost** (`scale_pos_weight=49.98`, grid search over depth/lr/estimators): boosted model tuned on PR-AUC.
 
 3. **Ensemble — Stacked meta-learner**: Logistic Regression trained on val-set predictions from LR + XGBoost. Threshold optimised against cost matrix: missed failure (FN) penalised 5× over false alarm (FP).
 
@@ -143,6 +145,15 @@ Train/val/test split: 60/20/20 (stratified). All metrics on held-out test set.
 ```
 
 ---
+
+## Design Notes
+
+Trade-offs made deliberately for a demo context:
+
+- **Model artifacts are committed to git** (`model_artifacts/`, ~624KB total). No model registry or external storage — appropriate at this size, but would move to one (MLflow registry, S3) if artifacts grew or if multiple model versions needed tracking.
+- **Live Demo profiles are hardcoded**, not queried from a database. Streamlit Community Cloud's free tier has no database access, so `dashboard/app.py` ships 20 machine profiles designed to span the LOW/MEDIUM/HIGH risk spectrum. The ensemble inference and SHAP explanations on those profiles are real; the input data is not.
+- **CORS is fully open** (`allow_origins=["*"]`) in `src/api/main.py`. Demo API with no auth surface — would be scoped to specific origins before handling real traffic.
+- **XGBoost's near-perfect test PR-AUC (0.9999)** was treated as a leakage red flag during development, not just a good result — the dataset has clear failure precursors in the 24h window, which held up under inspection. `tests/test_feature_leakage.py` adds a static regression guard against the most likely leakage mistake (a feature CTE picking up the label's forward-looking window).
 
 ## Testing
 
