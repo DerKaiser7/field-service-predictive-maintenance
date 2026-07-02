@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: kaiser_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-user_name}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-database_name}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user_name} -d ${POSTGRES_DB:-database_name}"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: src/api/Dockerfile
+    container_name: kaiser_api
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-user_name}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-database_name}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

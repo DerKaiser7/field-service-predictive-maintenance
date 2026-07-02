@@ -1,0 +1,30 @@
+data/
+
+# Environment 
+.env
+venv/
+__pycache__/
+*.pyc
+*.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# MLFlow
+mlruns/
+mlartifacts/
+
+# Build 
+dist/
+build/
+*.egg-info/
+
+# Logs
+logs/
+
+predictive_maintenance_project_design_specification.md
+project1_setup_guide.md
+docs/ROADMAP.md
+# Dashboard
+dashboard/.streamlit/secrets.toml

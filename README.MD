@@ -139,7 +139,11 @@ Train/val/test split: 60/20/20 (stratified). All metrics on held-out test set.
 │   │   ├── train_baseline.py
 │   │   ├── train_xgboost.py
 │   │   └── ensemble.py
-│   └── api/main.py                  # FastAPI serving layer
+│   └── api/
+│       ├── main.py                  # FastAPI serving layer
+│       ├── Dockerfile
+│       └── requirements.txt         # API-only dependency set (no streamlit/mlflow/etc.)
+├── docker-compose.yml                # Postgres + API service
 ├── requirements.txt
 └── README.MD
 ```
@@ -190,6 +194,9 @@ python -m src.models.ensemble
 # 6. Run Streamlit demo (uses committed model artifacts — no DB required)
 streamlit run dashboard/app.py
 
-# 7. Run FastAPI (optional)
+# 7. Run FastAPI (optional) — locally...
 uvicorn src.api.main:app --port 8000
+
+# ...or as a container alongside Postgres
+docker compose up -d --build api
 ```
