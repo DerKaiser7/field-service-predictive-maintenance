@@ -22,24 +22,9 @@ Unplanned machine failures are significantly more costly than scheduled maintena
 
 ## Architecture
 
-```text
-Raw CSVs (telemetry, errors, maintenance, failures, machines)
-    ↓  src/data_operations/load.py
-Staging Tables (PostgreSQL)
-    ↓  src/data_operations/promote_to_base.py
-Base Tables (machines, telemetry, errors, maintenance, failures)
-    ↓  sql/features/build_features.sql
-model_input_features (876,100 rows, 42 features + label)
-    ↓
-Model Training
-    ├── src/models/train_baseline.py  →  Logistic Regression
-    ├── src/models/train_xgboost.py   →  XGBoost
-    └── src/models/ensemble.py        →  Stacked ensemble + threshold optimisation
-    ↓  model_artifacts/
-FastAPI Prediction Service  (src/api/main.py)
-    ↓
-Streamlit Demo  (dashboard/app.py)
-```
+Raw CSVs → PostgreSQL staging → base tables → SQL feature build → LR + XGBoost base models → stacked ensemble → committed `model_artifacts/` → FastAPI service and Streamlit demo.
+
+Full pipeline diagram and deployment topology: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
@@ -117,6 +102,7 @@ Train/val/test split: 60/20/20 (stratified). All metrics on held-out test set.
 │   ├── app.py                       # Streamlit demo
 │   └── .streamlit/config.toml       # Theme config
 ├── docs/
+│   ├── ARCHITECTURE.md
 │   └── FEATURE_ENGINEERING.md
 ├── model_artifacts/                 # Trained model files (committed)
 │   ├── baseline_lr.pkl
