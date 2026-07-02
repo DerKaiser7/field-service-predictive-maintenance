@@ -35,5 +35,48 @@ services:
       postgres:
         condition: service_healthy
 
+  mlflow:
+    build:
+      context: ./mlflow
+    container_name: kaiser_mlflow
+    command:
+      - --backend-store-uri=postgresql+psycopg2://${POSTGRES_USER:-user_name}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-database_name}
+      - --artifacts-destination=/mlflow/artifacts
+      - --serve-artifacts
+    ports:
+      - "5001:5000"
+    volumes:
+      - mlflow_artifacts:/mlflow/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: kaiser_prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: kaiser_grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   postgres_data:
+  mlflow_artifacts:
+  grafana_data:

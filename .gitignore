@@ -15,6 +15,9 @@ __pycache__/
 mlruns/
 mlartifacts/
 
+# Generated monitoring reports
+monitoring/reports/
+
 # Build 
 dist/
 build/

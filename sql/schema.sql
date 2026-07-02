@@ -105,7 +105,8 @@ CREATE TABLE prediction_logs (
     observation_time TIMESTAMP NOT NULL,
     failure_probability NUMERIC(8,6) NOT NULL CHECK (failure_probability >= 0 AND failure_probability <= 1),
     predicted_label INTEGER NOT NULL CHECK (predicted_label IN (0,1)),
-    model_version   VARCHAR
+    model_version   VARCHAR,
+    features        JSONB
 );
 
 -- ===================================

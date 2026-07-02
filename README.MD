@@ -94,6 +94,30 @@ Train/val/test split: 60/20/20 (stratified). All metrics on held-out test set.
 
 ---
 
+## MLOps Monitoring
+
+Three pieces, each addressing a different gap between "a model that scores well offline" and "a model someone can operate":
+
+- **MLflow — experiment tracking + model registry.** `train_baseline.py`, `train_xgboost.py`, and `ensemble.py` each log params/metrics/model artifacts to a dedicated `mlflow` service (Postgres-backed, proxied artifact storage). The final ensemble is registered as `predictive-maintenance-ensemble` via `src/mlops/ensemble_pyfunc.py` — a pyfunc wrapper, since the "model" is really three coupled artifacts (LR, XGBoost, meta-learner) that only make sense registered together, not as a single sklearn object.
+- **Prometheus + Grafana — service monitoring.** The FastAPI service is instrumented with `prometheus-fastapi-instrumentator`, exposing request rate/latency/status metrics at `/metrics/prometheus` (kept separate from the existing `/metrics` endpoint, which returns model metadata, not service metrics). Grafana ships with a provisioned dashboard reading from Prometheus.
+- **Evidently — feature drift detection.** `prediction_logs` now stores the input feature vector per prediction (`features JSONB` column), not just the output. `src/monitoring/drift_report.py` compares logged production features against a sample of the training baseline, writes an HTML drift report, and logs one row per feature to `model_monitoring` (a table that existed in `sql/schema.sql` from early on but had nothing writing to it until now). Output-only monitoring (mean/std of `failure_probability`) can't catch a model that's still confidently wrong on inputs that have drifted away from what it was trained on.
+
+Neither the API nor a real machine fleet has production traffic to show in a demo, so `src/monitoring/generate_synthetic_load.py` fires simulated `/predict` requests — with a deliberate drift ramp partway through, simulating a fleet aging over time — so Grafana and the drift report have real data to display rather than empty charts.
+
+```bash
+# with the full stack running (docker compose up -d):
+python -m src.monitoring.generate_synthetic_load --requests 200
+python -m src.monitoring.drift_report
+```
+
+| Service | URL |
+| --- | --- |
+| MLflow tracking UI | <http://localhost:5001> |
+| Prometheus | <http://localhost:9090> |
+| Grafana (anonymous viewer access) | <http://localhost:3000> |
+
+---
+
 ## Repository Structure
 
 ```text
@@ -108,7 +132,13 @@ Train/val/test split: 60/20/20 (stratified). All metrics on held-out test set.
 │   ├── baseline_lr.pkl
 │   ├── xgboost_main.pkl
 │   ├── ensemble_meta_learner.pkl
-│   └── optimal_threshold.json
+│   ├── optimal_threshold.json
+│   └── leakage_ablation.json
+├── monitoring/
+│   ├── prometheus/prometheus.yml
+│   └── grafana/provisioning/       # datasource + dashboard, auto-loaded on container start
+├── mlflow/
+│   └── Dockerfile                   # mlflow server image (mlflow + psycopg2-binary)
 ├── sql/
 │   ├── schema.sql
 │   ├── eda/                         # Exploratory queries (00–06)
@@ -126,11 +156,17 @@ Train/val/test split: 60/20/20 (stratified). All metrics on held-out test set.
 │   │   ├── train_xgboost.py
 │   │   ├── ensemble.py
 │   │   └── ablation_leakage_check.py
+│   ├── mlops/
+│   │   ├── mlflow_utils.py
+│   │   └── ensemble_pyfunc.py       # registers the LR+XGBoost+meta-learner trio as one MLflow model
+│   ├── monitoring/
+│   │   ├── drift_report.py
+│   │   └── generate_synthetic_load.py
 │   └── api/
 │       ├── main.py                  # FastAPI serving layer
 │       ├── Dockerfile
 │       └── requirements.txt         # API-only dependency set (no streamlit/mlflow/etc.)
-├── docker-compose.yml                # Postgres + API service
+├── docker-compose.yml                # Postgres, API, MLflow, Prometheus, Grafana
 ├── requirements.txt
 └── README.MD
 ```
@@ -141,10 +177,12 @@ Train/val/test split: 60/20/20 (stratified). All metrics on held-out test set.
 
 Trade-offs made deliberately for a demo context:
 
-- **Model artifacts are committed to git** (`model_artifacts/`, ~624KB total). No model registry or external storage — appropriate at this size, but would move to one (MLflow registry, S3) if artifacts grew or if multiple model versions needed tracking.
+- **Model artifacts are committed to git** (`model_artifacts/`, ~624KB total) so the Streamlit demo and API can run without training anything first. MLflow now provides a real model registry for anyone running the full `docker compose` stack locally — the two aren't in tension: git holds what's needed to *run* the demo, MLflow holds run history and versioned models for anyone iterating on training.
 - **Live Demo profiles are hardcoded**, not queried from a database. Streamlit Community Cloud's free tier has no database access, so `dashboard/app.py` ships 20 machine profiles designed to span the LOW/MEDIUM/HIGH risk spectrum. The ensemble inference and SHAP explanations on those profiles are real; the input data is not.
 - **CORS is fully open** (`allow_origins=["*"]`) in `src/api/main.py`. Demo API with no auth surface — would be scoped to specific origins before handling real traffic.
 - **XGBoost's near-perfect test PR-AUC (0.9999)** was treated as a leakage red flag during development, not just a good result. `src/models/ablation_leakage_check.py` retrains the model with `total_prior_failures`, `days_since_last_failure`, and `distinct_failure_types` removed — these are the features most structurally similar to the label, since both derive from the `failures` table. Test PR-AUC drops by only 0.0003 (0.9999 → 0.9995, FN: 0 → 4), meaning the score is driven by telemetry/error signal, not by those features leaking future failure information. `tests/test_feature_leakage.py` adds a static regression guard against the most likely leakage mistake (a feature CTE picking up the label's forward-looking window).
+- **MLflow's host port is 5001, not the default 5000.** Port 5000 is claimed by macOS's AirPlay Receiver (ControlCenter) by default on most Macs; the container's internal port is still 5000.
+- **Monitoring runs on synthetic traffic, not real usage.** Neither the API nor a real fleet has production traffic — `src/monitoring/generate_synthetic_load.py` exists specifically so Grafana and the Evidently drift report have real data to display rather than empty charts. The drift it detects (simulated fleet aging) is manufactured, not observed.
 
 ## Testing
 
@@ -159,7 +197,7 @@ pytest tests/
 **Prerequisites:** Docker, Python 3.11, `.env` file with DB credentials.
 
 ```bash
-# 1. Start PostgreSQL
+# 1. Start the full stack: Postgres, API, MLflow, Prometheus, Grafana
 docker compose up -d
 
 # 2. Install dependencies
@@ -173,10 +211,11 @@ python -m src.data_operations.promote_to_base
 # 4. Build features
 psql -h localhost -U $POSTGRES_USER -d $POSTGRES_DB -f sql/features/build_features.sql
 
-# 5. Train models
+# 5. Train models — logs params/metrics/artifacts to the mlflow service (http://localhost:5001)
+export MLFLOW_TRACKING_URI=http://localhost:5001
 python -m src.models.train_baseline
 python -m src.models.train_xgboost
-python -m src.models.ensemble
+python -m src.models.ensemble   # also registers 'predictive-maintenance-ensemble' in the MLflow Model Registry
 
 # 6. Run Streamlit demo (uses committed model artifacts — no DB required)
 streamlit run dashboard/app.py
@@ -184,6 +223,10 @@ streamlit run dashboard/app.py
 # 7. Run FastAPI (optional) — locally...
 uvicorn src.api.main:app --port 8000
 
-# ...or as a container alongside Postgres
+# ...or as a container alongside the rest of the stack (already started in step 1)
 docker compose up -d --build api
+
+# 8. Generate synthetic traffic + a drift report (optional — see MLOps Monitoring below)
+python -m src.monitoring.generate_synthetic_load --requests 200
+python -m src.monitoring.drift_report
 ```

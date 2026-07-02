@@ -20,6 +20,7 @@ import pandas as pd
 import shap
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 
 from src.data_operations.load import get_engine
@@ -74,6 +75,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Exposed at /metrics/prometheus, not /metrics — that path already serves the
+# JSON ensemble-metadata endpoint below.
+Instrumentator().instrument(app).expose(app, endpoint="/metrics/prometheus", include_in_schema=False)
 
 
 # ---------------------------------------------------------------------------
@@ -214,8 +219,16 @@ def _shap_top_k(X_raw: pd.DataFrame, k: int = TOP_K_FEATURES) -> list[FeatureImp
     return result
 
 
-def _log_prediction(machine_id: str, obs_time: datetime, prob: float, label: int) -> None:
-    """Insert a row into prediction_logs (runs as a FastAPI background task)."""
+def _log_prediction(
+    machine_id: str, obs_time: datetime, prob: float, label: int, features: dict[str, Any]
+) -> None:
+    """Insert a row into prediction_logs (runs as a FastAPI background task).
+
+    Stores the input feature vector alongside the prediction so drift checks
+    (src/monitoring/drift_report.py) have production feature values to
+    compare against the training baseline — output-only logging can't
+    detect feature drift, only prediction drift.
+    """
     try:
         engine = get_engine()
         with engine.connect() as conn:
@@ -223,8 +236,8 @@ def _log_prediction(machine_id: str, obs_time: datetime, prob: float, label: int
                 __import__("sqlalchemy").text(
                     """
                     INSERT INTO prediction_logs
-                        (machineid, observation_time, failure_probability, predicted_label, model_version)
-                    VALUES (:mid, :obs, :prob, :label, :ver)
+                        (machineid, observation_time, failure_probability, predicted_label, model_version, features)
+                    VALUES (:mid, :obs, :prob, :label, :ver, CAST(:features AS JSONB))
                     """
                 ),
                 {
@@ -233,6 +246,7 @@ def _log_prediction(machine_id: str, obs_time: datetime, prob: float, label: int
                     "prob": prob,
                     "label": label,
                     "ver": MODEL_VERSION,
+                    "features": json.dumps(features, default=str),
                 },
             )
             conn.commit()
@@ -283,7 +297,7 @@ def predict(req: PredictRequest, background_tasks: BackgroundTasks) -> Predictio
         top_features = []
 
     background_tasks.add_task(
-        _log_prediction, req.machine_id, req.observation_time, prob, label
+        _log_prediction, req.machine_id, req.observation_time, prob, label, req.features
     )
 
     return PredictionResponse(
