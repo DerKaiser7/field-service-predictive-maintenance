@@ -3,5 +3,12 @@ numpy==1.26.4
 scikit-learn==1.5.2
 xgboost==2.1.3
 shap==0.46.0
+# shap's TreeExplainer JIT-compiles via numba/llvmlite. Both are transitive
+# (unpinned) deps of shap, so a fresh install can silently pick up a newer
+# release; llvmlite's JIT codegen is CPU-feature-sensitive enough that a
+# version bump can segfault on some hosts while working fine on others.
+# Pinned to a long-stable, widely-used pair to remove that drift.
+numba==0.60.0
+llvmlite==0.43.0
 plotly==5.24.1
 streamlit==1.40.2

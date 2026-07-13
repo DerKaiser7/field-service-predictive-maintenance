@@ -142,7 +142,7 @@ def build_feature_row(m: pd.Series) -> pd.DataFrame:
 
 
 def run_prediction(X: pd.DataFrame):
-    prob = float(ensemble.predict_proba(X))
+    prob = float(ensemble.predict_proba(X)[0])
     label = int(prob >= THRESHOLD)
     risk = "HIGH" if prob >= THRESHOLD else ("MEDIUM" if prob >= THRESHOLD * 0.5 else "LOW")
 
